@@ -105,17 +105,40 @@ else:
         st.experimental_rerun()
 
 # Database helper functions
+def ensure_db_secrets():
+    """Fail fast if DB secrets are missing or incomplete."""
+    conns = st.secrets.get("connections")
+    if not conns or "postgresql" not in conns:
+        st.error(
+            "Database configuration missing. Please add 'connections.postgresql' to Streamlit secrets "
+            "with keys: host, port, database, username, password (and optional sslmode). The app requires a "
+            "Postgres database and will not run without it."
+        )
+        st.stop()
+    db = conns["postgresql"]
+    required = ("host", "port", "database", "username", "password")
+    missing = [k for k in required if not db.get(k)]
+    if missing:
+        st.error(f"Database secrets are incomplete. Missing keys: {', '.join(missing)}. Update Streamlit secrets accordingly.")
+        st.stop()
+
+
 def get_db_conn():
+    ensure_db_secrets()
     db = st.secrets["connections"]["postgresql"]
-    conn = psycopg2.connect(
-        host=db["host"],
-        port=db["port"],
-        dbname=db["database"],
-        user=db["username"],
-        password=db["password"],
-        sslmode=db.get("sslmode", "require")
-    )
-    return conn
+    try:
+        conn = psycopg2.connect(
+            host=db["host"],
+            port=str(db["port"]),
+            dbname=db["database"],
+            user=db["username"],
+            password=db["password"],
+            sslmode=db.get("sslmode", "require")
+        )
+        return conn
+    except Exception as e:
+        st.error(f"Unable to connect to the database: {e}")
+        st.stop()
 
 def load_data_from_db(user_email):
     conn = get_db_conn()
@@ -271,7 +294,8 @@ if "mood_value" not in st.session_state:
 if "current_theme" not in st.session_state:
     st.session_state.current_theme = "🌊 Ocean"
 
-# Load data and config
+# Ensure DB secrets exist and load data and config
+ensure_db_secrets()
 data = load_data_from_db(user_email)
 config = load_config()
 
