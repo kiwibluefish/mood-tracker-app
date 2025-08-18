@@ -104,10 +104,17 @@ def load_config_from_supabase(user_email):
         if response.data:
             return response.data[0]["config"]
         else:
-            return {"openai_api_key": "", "theme": "🌊 Ocean"}
+            return {"theme": "🌊 Ocean"}
     except Exception as e:
         st.error(f"Error loading config from Supabase: {str(e)}")
-        return {"openai_api_key": "", "theme": "🌊 Ocean"}
+        return {"theme": "🌊 Ocean"}
+
+def get_global_openai_key():
+    """Get global OpenAI API key from secrets"""
+    try:
+        return st.secrets.get("openai_api_key", "")
+    except:
+        return ""
 
 def save_config_to_supabase(user_email, config):
     """Save app configuration to Supabase"""
@@ -574,6 +581,9 @@ if "current_theme" not in st.session_state:
 data = load_data_from_supabase(user_email)
 config = load_config_from_supabase(user_email)
 
+# Get global OpenAI API key
+api_key = get_global_openai_key()
+
 # Load theme preference from config
 if "theme" in config:
     st.session_state.current_theme = config["theme"]
@@ -622,15 +632,11 @@ if selected_theme == "🎨 Custom":
     if st.sidebar.button("🔄 Apply Custom Theme"):
         st.rerun()
 
-# OpenAI API Key
-api_key = st.sidebar.text_input("OpenAI API Key",
-                               value=config.get("openai_api_key", ""),
-                               type="password",
-                               help="Get your API key from https://platform.openai.com/api-keys")
-
-if api_key != config.get("openai_api_key", ""):
-    config["openai_api_key"] = api_key
-    save_config_to_supabase(user_email, config)
+# Show AI status in sidebar
+if api_key:
+    st.sidebar.success("🤖 AI Features Enabled")
+else:
+    st.sidebar.warning("🤖 AI Features Disabled")
 
 # Main app tabs
 tab_checkin, tab_hints, tab_trends, tab_chat = st.tabs(["📝 Check-in", "💡 Hints", "📊 Trends", "💬 Chat"])
