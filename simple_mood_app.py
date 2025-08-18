@@ -1,5 +1,5 @@
-# Simple Mood Tracking App - With Google OAuth + Supabase DB
-# Run with: streamlit run simple_mood_app_with_oauth.py
+# Simple Mood Tracking App - All-in-One Version (No Email)
+# Run with: streamlit run simple_mood_app_fixed.py
 
 import streamlit as st
 import pandas as pd
@@ -10,24 +10,85 @@ import time
 from datetime import date, datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
-import psycopg2
-from psycopg2.extras import RealDictCursor
 
-import streamlit as st
-
+# --- Authentication gate (Streamlit-managed OIDC) ---
 def show_login():
-    st.header("Private app — sign in")
+    st.header("This app is private.")
+    st.subheader("Please sign in with Google")
     if st.button("Sign in with Google"):
         st.login()
 
+# If user not logged in, show login screen and stop execution
 if not st.user.is_logged_in:
     show_login()
-    st.stop()
+    st.stop()  # prevents the rest of the app from running until login
 else:
-    st.write("Logged in as:", st.user.email, st.user.name)
-    st.button("Log out", on_click=lambda: (st.logout(), st.experimental_rerun()))
+    # Example: available identity fields
+    user_email = st.user.email
+    user_name = st.user.name
+    st.sidebar.markdown(f"Signed in as **{user_name}** ({user_email})")
+    if st.button("Log out"):
+        st.logout()
+        st.experimental_rerun()
+
+# imports near top:
+import psycopg2
+from psycopg2.extras import Json, RealDictCursor
+from datetime import datetime, date
+import streamlit as st
+
+def get_db_conn():
+    db = st.secrets["connections"]["postgresql"]
+    conn = psycopg2.connect(
+        host=db["host"],
+        port=db["port"],
+        dbname=db["database"],
+        user=db["username"],
+        password=db["password"],
+        sslmode=db.get("sslmode", "require")
+    )
+    return conn
+
+def load_data_from_db(user_email):
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT data FROM public.user_data WHERE email = %s", (user_email,))
+        row = cur.fetchone()
+        if not row:
+            return []
+        data = row["data"]
+        # convert date strings back to date objects if needed
+        for entry in data:
+            if isinstance(entry.get('date'), str):
+                entry['date'] = datetime.strptime(entry['date'], '%Y-%m-%d').date()
+        return data
+    finally:
+        conn.close()
+
+def save_data_to_db(user_email, data):
+    # serialize dates
+    data_to_save = []
+    for entry in data:
+        entry_copy = entry.copy()
+        if isinstance(entry_copy.get('date'), date):
+            entry_copy['date'] = entry_copy['date'].strftime('%Y-%m-%d')
+        data_to_save.append(entry_copy)
+
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO public.user_data (email, data)
+            VALUES (%s, %s)
+            ON CONFLICT (email) DO UPDATE SET data = EXCLUDED.data, updated_at = now()
+            """, (user_email, Json(data_to_save)))
+        conn.commit()
+    finally:
+        conn.close()
 
 # Configuration
+DATA_FILE = "mood_data.json"
 CONFIG_FILE = "app_config.json"
 
 # Tag palette
@@ -46,7 +107,7 @@ THEMES = {
         "secondary": "#1e40af",
         "accent": "#60a5fa",
         "background": "#f8fafc",
-        "surface": "#ffff",
+        "surface": "#ffffff",
         "text": "#1f2937",
         "gradient_start": "#667eea",
         "gradient_end": "#764ba2",
@@ -57,7 +118,7 @@ THEMES = {
         "secondary": "#d97706",
         "accent": "#fbbf24",
         "background": "#fffbeb",
-        "surface": "#ffff",
+        "surface": "#ffffff",
         "text": "#92400e",
         "gradient_start": "#f59e0b",
         "gradient_end": "#ef4444",
@@ -68,7 +129,7 @@ THEMES = {
         "secondary": "#be185d",
         "accent": "#f472b6",
         "background": "#fdf2f8",
-        "surface": "#ffff",
+        "surface": "#ffffff",
         "text": "#831843",
         "gradient_start": "#ec4899",
         "gradient_end": "#8b5cf6",
@@ -79,7 +140,7 @@ THEMES = {
         "secondary": "#047857",
         "accent": "#34d399",
         "background": "#f0fdf4",
-        "surface": "#ffff",
+        "surface": "#ffffff",
         "text": "#064e3b",
         "gradient_start": "#10b981",
         "gradient_end": "#059669",
@@ -101,169 +162,7 @@ THEMES = {
 # App configuration
 st.set_page_config(page_title="Daily Mood Check-in", page_icon="😊", layout="centered")
 
-# ---------------- AUTHENTICATION & DB ----------------
-def ensure_db_secrets():
-    """Ensure all required DB secrets are present"""
-    required_keys = [
-        "db_host", "db_port", "db_name", "db_user", "db_password"
-    ]
-    missing = [key for key in required_keys if not st.secrets.get(key)]
-    if missing:
-        st.error(f"❌ Missing required DB secrets: {', '.join(missing)}")
-        st.info("Please add these keys to your Streamlit secrets.toml")
-        st.stop()
-
-def get_db_conn():
-    """Get database connection"""
-    ensure_db_secrets()
-    try:
-        conn = psycopg2.connect(
-            host=st.secrets["db_host"],
-            port=st.secrets["db_port"],
-            database=st.secrets["db_name"],
-            user=st.secrets["db_user"],
-            password=st.secrets["db_password"],
-            sslmode='require'
-        )
-        return conn
-    except Exception as e:
-        st.error(f"❌ Database connection failed: {str(e)}")
-        st.stop()
-
-def init_db():
-    """Initialize database table if not exists"""
-    conn = get_db_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS mood_data (
-            email TEXT NOT NULL,
-            data JSONB NOT NULL DEFAULT '[]'::jsonb,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-        );
-    """)
-    cur.execute("""
-        CREATE OR REPLACE FUNCTION set_updated_at()
-        RETURNS TRIGGER AS $$
-        BEGIN
-            NEW.updated_at = now();
-            RETURN NEW;
-        END;
-        $$ LANGUAGE plpgsql;
-    """)
-    cur.execute("""
-        DROP TRIGGER IF EXISTS trg_set_updated_at ON mood_data;
-        CREATE TRIGGER trg_set_updated_at
-        BEFORE INSERT OR UPDATE ON mood_data
-        FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def load_user_data(email):
-    """Load mood data for a specific user"""
-    conn = get_db_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT data FROM mood_data WHERE email = %s", (email,))
-    result = cur.fetchone()
-    cur.close()
-    conn.close()
-    if result:
-        data = json.loads(result['data'])
-        # Convert string dates back to date objects
-        for entry in data:
-            if isinstance(entry.get('date'), str):
-                entry['date'] = datetime.strptime(entry['date'], '%Y-%m-%d').date()
-        return data
-    return []
-
-def save_user_data(email, data):
-    """Save mood data for a specific user"""
-    # Convert date objects to strings for JSON serialization
-    data_to_save = []
-    for entry in data:
-        entry_copy = entry.copy()
-        if isinstance(entry_copy.get('date'), date):
-            entry_copy['date'] = entry_copy['date'].strftime('%Y-%m-%d')
-        data_to_save.append(entry_copy)
-
-    conn = get_db_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO mood_data (email, data)
-        VALUES (%s, %s)
-        ON CONFLICT (email)
-        DO UPDATE SET data = EXCLUDED.data, updated_at = now();
-    """, (email, json.dumps(data_to_save)))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def google_login():
-    """Handle Google OAuth login"""
-    # Check if we're returning from Google OAuth
-    if 'code' in st.query_params:
-        code = st.query_params['code']
-        try:
-            # Exchange code for token
-            token_url = "https://oauth2.googleapis.com/token"
-            data = {
-                'code': code,
-                'client_id': st.secrets["google_client_id"],
-                'client_secret': st.secrets["google_client_secret"],
-                'redirect_uri': st.secrets["google_redirect_uri"],
-                'grant_type': 'authorization_code'
-            }
-            response = requests.post(token_url, data=data)
-            token_info = response.json()
-            
-            # Get user info
-            idinfo = id_token.verify_oauth2_token(
-                token_info['id_token'],
-                google_requests.Request(),
-                st.secrets["google_client_id"]
-            )
-            
-            # Store user info in session
-            st.session_state.user_email = idinfo['email']
-            st.session_state.user_name = idinfo.get('name', '')
-            st.session_state.authenticated = True
-            
-            # Clear query params
-            del st.query_params['code']
-            
-            # Initialize DB if needed
-            init_db()
-            
-            st.rerun()
-        except Exception as e:
-            st.error(f"Login failed: {str(e)}")
-            return False
-    
-    # Show login button
-    if not st.session_state.get('authenticated', False):
-        auth_url = (
-            f"https://accounts.google.com/o/oauth2/auth?"
-            f"client_id={st.secrets['google_client_id']}&"
-            f"redirect_uri={st.secrets['google_redirect_uri']}&"
-            f"scope=openid%20email%20profile&"
-            f"response_type=code&"
-            f"access_type=offline"
-        )
-        st.markdown(f"""
-            <div style="text-align: center; margin-top: 50px;">
-                <a href="{auth_url}" target="_self">
-                    <img src="https://developers.google.com/identity/images/btn_google_signin_dark_normal_web.png" 
-                         style="cursor: pointer; max-width: 200px;">
-                </a>
-            </div>
-        """, unsafe_allow_html=True)
-        st.stop()
-    
-    return True
-
-# ---------------- THEME FUNCTIONS ----------------
+# Theme management functions
 def get_current_theme():
     """Get current theme from session state or default"""
     return st.session_state.get("current_theme", "🌊 Ocean")
@@ -277,7 +176,7 @@ def apply_theme_css(theme_name):
             "secondary": st.session_state.get("custom_secondary", "#1e40af"),
             "accent": st.session_state.get("custom_accent", "#60a5fa"),
             "background": st.session_state.get("custom_background", "#f8fafc"),
-            "surface": st.session_state.get("custom_surface", "#ffff"),
+            "surface": st.session_state.get("custom_surface", "#ffffff"),
             "text": st.session_state.get("custom_text", "#1f2937"),
             "gradient_start": st.session_state.get("custom_gradient_start", "#667eea"),
             "gradient_end": st.session_state.get("custom_gradient_end", "#764ba2"),
@@ -529,21 +428,49 @@ def apply_theme_css(theme_name):
     </style>
     """, unsafe_allow_html=True)
 
-# ---------------- DATA FUNCTIONS ----------------
+# Data management functions
+def load_data():
+    """Load mood data from JSON file"""
+    try:
+        with open(DATA_FILE, 'r') as f:
+            data = json.load(f)
+            # Convert string dates back to date objects for processing
+            for entry in data:
+                if isinstance(entry.get('date'), str):
+                    entry['date'] = datetime.strptime(entry['date'], '%Y-%m-%d').date()
+            return data
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+def save_data(data):
+    """Save mood data to JSON file"""
+    # Convert date objects to strings for JSON serialization
+    data_to_save = []
+    for entry in data:
+        entry_copy = entry.copy()
+        if isinstance(entry_copy.get('date'), date):
+            entry_copy['date'] = entry_copy['date'].strftime('%Y-%m-%d')
+        data_to_save.append(entry_copy)
+
+    with open(DATA_FILE, 'w') as f:
+        json.dump(data_to_save, f, indent=2)
+
 def load_config():
     """Load app configuration"""
     try:
         with open(CONFIG_FILE, 'r') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        return {"openai_api_key": ""}
+        return {
+            "openai_api_key": ""
+        }
 
 def save_config(config):
     """Save app configuration"""
     with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f, indent=2)
 
-# ---------------- MOOD HELPER FUNCTIONS ----------------
+# Mood helper functions
 def get_mood_emoji_and_label(mood_score):
     """Return emoji and label for mood score"""
     if mood_score <= 1:
@@ -622,7 +549,7 @@ def get_ai_suggestion(mood_score, note_text, api_key):
         }
 
         response = requests.post("https://api.openai.com/v1/chat/completions",
-                                 headers=headers, json=data, timeout=30)
+                               headers=headers, json=data, timeout=30)
 
         if response.status_code == 200:
             return response.json()["choices"][0]["message"]["content"].strip()
@@ -632,7 +559,6 @@ def get_ai_suggestion(mood_score, note_text, api_key):
     except Exception as e:
         return f"AI temporarily unavailable: {str(e)[:50]}..."
 
-# ---------------- MAIN APP ----------------
 # Initialize session state
 if "selected_tags" not in st.session_state:
     st.session_state.selected_tags = set()
@@ -644,15 +570,10 @@ if "mood_value" not in st.session_state:
     st.session_state.mood_value = 5
 if "current_theme" not in st.session_state:
     st.session_state.current_theme = "🌊 Ocean"
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
 
-# Load config
+# Load data and config
+data = load_data()
 config = load_config()
-
-# Handle Google OAuth login
-if not google_login():
-    st.stop()
 
 # Load theme preference from config
 if "theme" in config:
@@ -661,21 +582,8 @@ if "theme" in config:
 # Apply current theme CSS
 apply_theme_css(st.session_state.current_theme)
 
-# Load user data
-user_email = st.session_state.user_email
-data = load_user_data(user_email)
-
 # Sidebar for settings
 st.sidebar.header("⚙️ Settings")
-
-# User info
-st.sidebar.subheader("👤 User")
-st.sidebar.write(f"**{st.session_state.user_name}**")
-st.sidebar.write(f"*{user_email}*")
-if st.sidebar.button("🚪 Logout"):
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.rerun()
 
 # Theme Picker
 st.sidebar.subheader("🎨 Theme")
@@ -706,7 +614,7 @@ if selected_theme == "🎨 Custom":
 
     with col2:
         st.session_state.custom_secondary = st.color_picker("Secondary", st.session_state.get("custom_secondary", "#1e40af"))
-        st.session_state.custom_surface = st.color_picker("Surface", st.session_state.get("custom_surface", "#ffff"))
+        st.session_state.custom_surface = st.color_picker("Surface", st.session_state.get("custom_surface", "#ffffff"))
         st.session_state.custom_text = st.color_picker("Text", st.session_state.get("custom_text", "#1f2937"))
 
     st.session_state.custom_gradient_start = st.sidebar.color_picker("Gradient Start", st.session_state.get("custom_gradient_start", "#667eea"))
@@ -717,9 +625,9 @@ if selected_theme == "🎨 Custom":
 
 # OpenAI API Key
 api_key = st.sidebar.text_input("OpenAI API Key",
-                                value=config.get("openai_api_key", ""),
-                                type="password",
-                                help="Get your API key from https://platform.openai.com/api-keys")
+                               value=config.get("openai_api_key", ""),
+                               type="password",
+                               help="Get your API key from https://platform.openai.com/api-keys")
 
 if api_key != config.get("openai_api_key", ""):
     config["openai_api_key"] = api_key
@@ -825,7 +733,7 @@ with tab_checkin:
 
     # Manual tags
     manual_tags = st.text_input("Additional tags (comma-separated)",
-                                value=", ".join(sorted(st.session_state.selected_tags)))
+                               value=", ".join(sorted(st.session_state.selected_tags)))
 
     # Update selected tags from manual input
     if manual_tags:
@@ -876,7 +784,7 @@ with tab_checkin:
         }
 
         data.append(new_entry)
-        save_user_data(user_email, data)
+        save_data(data)
 
         st.success(f"Check-in saved for {selected_date.strftime('%B %d, %Y')}!")
 
@@ -956,11 +864,11 @@ with tab_trends:
         # Daily mood chart
         st.subheader("Daily Mood")
         fig = px.line(df, x='date', y='mood_score',
-                      title="Mood Over Time",
-                      labels={'mood_score': 'Mood Score', 'date': 'Date'},
-                      range_y=[0, 10])
+                     title="Mood Over Time",
+                     labels={'mood_score': 'Mood Score', 'date': 'Date'},
+                     range_y=[0, 10])
         fig.add_hline(y=5, line_dash="dash", line_color="gray",
-                      annotation_text="Neutral")
+                     annotation_text="Neutral")
         st.plotly_chart(fig, use_container_width=True)
 
         # Weekly average
@@ -968,11 +876,11 @@ with tab_trends:
             st.subheader("Weekly Average")
             df_weekly = df.set_index('date').resample('W')['mood_score'].mean().reset_index()
             fig_weekly = px.line(df_weekly, x='date', y='mood_score',
-                                 title="Weekly Average Mood",
-                                 labels={'mood_score': 'Average Mood', 'date': 'Week'},
-                                 range_y=[0, 10])
+                               title="Weekly Average Mood",
+                               labels={'mood_score': 'Average Mood', 'date': 'Week'},
+                               range_y=[0, 10])
             fig_weekly.add_hline(y=5, line_dash="dash", line_color="gray",
-                                 annotation_text="Neutral")
+                               annotation_text="Neutral")
             st.plotly_chart(fig_weekly, use_container_width=True)
 
         # Weekly trend analysis
@@ -1016,7 +924,7 @@ with tab_trends:
 
             # Add neutral line
             fig_trend.add_hline(y=5, line_dash="dot", line_color="gray",
-                                annotation_text="Neutral", annotation_position="bottom right")
+                              annotation_text="Neutral", annotation_position="bottom right")
 
             fig_trend.update_layout(
                 title="Weekly Mood Trend Analysis",
@@ -1044,8 +952,8 @@ with tab_trends:
         # Mood distribution
         st.subheader("Mood Distribution")
         fig_hist = px.histogram(df, x='mood_score', nbins=11,
-                                title="How Often You Feel Each Mood Level",
-                                labels={'mood_score': 'Mood Score', 'count': 'Number of Days'})
+                              title="How Often You Feel Each Mood Level",
+                              labels={'mood_score': 'Mood Score', 'count': 'Number of Days'})
         st.plotly_chart(fig_hist, use_container_width=True)
 
         # Export data
@@ -1092,7 +1000,7 @@ with tab_chat:
                 }
 
                 response = requests.post("https://api.openai.com/v1/chat/completions",
-                                         headers=headers, json=data_payload, timeout=30)
+                                       headers=headers, json=data_payload, timeout=30)
 
                 if response.status_code == 200:
                     ai_response = response.json()["choices"][0]["message"]["content"]
