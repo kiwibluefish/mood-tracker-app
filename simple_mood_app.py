@@ -10,10 +10,22 @@ import time
 from datetime import date, datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+import streamlit as st
+
+def show_login():
+    st.header("Private app — sign in")
+    if st.button("Sign in with Google"):
+        st.login()
+
+if not st.user.is_logged_in:
+    show_login()
+    st.stop()
+else:
+    st.write("Logged in as:", st.user.email, st.user.name)
+    st.button("Log out", on_click=lambda: (st.logout(), st.experimental_rerun()))
 
 # Configuration
 CONFIG_FILE = "app_config.json"
