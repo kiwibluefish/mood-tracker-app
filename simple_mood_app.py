@@ -113,7 +113,7 @@ def get_global_openai_key():
     """Get global OpenAI API key from secrets"""
     try:
         # Access the key from the [openai] section
-        key = st.secrets["openai"]["api_key"]
+        key = st.secrets["openai"]["openai_api_key"]
         return key.strip() if key else ""
     except Exception as e:
         # For debugging - you can remove this later
@@ -295,6 +295,23 @@ def apply_theme_css(theme_name):
         background-color: var(--surface-color);
         color: var(--text-color);
         border: 1px solid var(--accent-color);
+    }}
+
+    /* Tag remove button styling */
+    .stButton>button[key*="remove_"] {{
+        background-color: #fee2e2 !important;
+        border-color: #fca5a5 !important;
+        color: #dc2626 !important;
+        font-size: 0.85rem !important;
+        min-height: 32px !important;
+        padding: 4px 8px !important;
+        margin: 2px !important;
+    }}
+
+    .stButton>button[key*="remove_"]:hover {{
+        background-color: #fecaca !important;
+        border-color: #f87171 !important;
+        color: #b91c1c !important;
     }}
 
     /* Primary button styling with theme colors */
@@ -736,21 +753,32 @@ with tab_checkin:
                 st.session_state.selected_tags.add(tag)
             st.rerun()
 
-    # Display selected tags
+    # Display selected tags with remove buttons
     if st.session_state.selected_tags:
         st.markdown("**Selected tags:**")
-        tags_html = ""
-        for tag in sorted(st.session_state.selected_tags):
-            tags_html += f'<span class="tag-chip">{tag}</span>'
-        st.markdown(tags_html, unsafe_allow_html=True)
+        
+        # Create columns for tag removal buttons
+        tags_list = sorted(st.session_state.selected_tags)
+        if tags_list:
+            # Display tags in rows of 4
+            for i in range(0, len(tags_list), 4):
+                cols = st.columns(4)
+                for j, tag in enumerate(tags_list[i:i+4]):
+                    with cols[j]:
+                        if st.button(f"❌ {tag}", key=f"remove_{tag}", help=f"Remove {tag}"):
+                            st.session_state.selected_tags.remove(tag)
+                            st.rerun()
 
-    # Manual tags
+    # Manual tags input
     manual_tags = st.text_input("Additional tags (comma-separated)",
-                               value=", ".join(sorted(st.session_state.selected_tags)))
+                               value=", ".join(sorted(st.session_state.selected_tags)),
+                               help="Type additional tags separated by commas, or edit existing ones")
 
     # Update selected tags from manual input
     if manual_tags:
-        st.session_state.selected_tags = set([t.strip() for t in manual_tags.split(",") if t.strip()])
+        new_tags = set([t.strip() for t in manual_tags.split(",") if t.strip()])
+        if new_tags != st.session_state.selected_tags:
+            st.session_state.selected_tags = new_tags
 
     # Helpful hint and AI suggestion
     col1, col2 = st.columns(2)
