@@ -112,7 +112,7 @@ def load_config_from_supabase(user_email):
 def get_global_openai_key():
     """Get global OpenAI API key from secrets"""
     try:
-        return st.secrets.get("openai_api_key", "")
+        return st.secrets["openai_api_key"]
     except:
         return ""
 
@@ -773,7 +773,7 @@ with tab_checkin:
             else:
                 st.info("Move the mood slider to get AI suggestions")
         else:
-            st.info("Add your OpenAI API key in the sidebar to enable AI suggestions")
+            st.info("AI suggestions are currently disabled - contact admin to enable")
 
     # Submit button
     if st.button("Submit Check-in", type="primary"):
@@ -971,7 +971,7 @@ with tab_chat:
     st.header("💬 Supportive Chat")
 
     if not api_key:
-        st.info("Add your OpenAI API key in the sidebar to enable chat functionality.")
+        st.info("Chat functionality is currently disabled - contact admin to enable AI features.")
     else:
         # Display chat history
         for message in st.session_state.chat_history:
