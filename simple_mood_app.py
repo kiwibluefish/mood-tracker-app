@@ -1,5 +1,5 @@
-# Simple Mood Tracking App - All-in-One Version (No Email)
-# Run with: streamlit run simple_mood_app_fixed.py
+# Simple Mood Tracking App - Supabase Version
+# Run with: streamlit run simple_mood_app_supabase.py
 
 import streamlit as st
 import pandas as pd
@@ -10,6 +10,7 @@ import time
 from datetime import date, datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
+from supabase import create_client, Client
 
 # --- Authentication gate (Streamlit-managed OIDC) ---
 def show_login():
@@ -31,65 +32,105 @@ else:
         st.logout()
         st.experimental_rerun()
 
-# imports near top:
-import psycopg2
-from psycopg2.extras import Json, RealDictCursor
-from datetime import datetime, date
-import streamlit as st
+# Supabase configuration
+@st.cache_resource
+def init_supabase():
+    """Initialize Supabase client"""
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["anon_key"]
+    return create_client(url, key)
 
-def get_db_conn():
-    db = st.secrets["connections"]["postgresql"]
-    conn = psycopg2.connect(
-        host=db["host"],
-        port=db["port"],
-        dbname=db["database"],
-        user=db["username"],
-        password=db["password"],
-        sslmode=db.get("sslmode", "require")
-    )
-    return conn
+supabase: Client = init_supabase()
 
-def load_data_from_db(user_email):
-    conn = get_db_conn()
+def load_data_from_supabase(user_email):
+    """Load mood data from Supabase"""
     try:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT data FROM public.user_data WHERE email = %s", (user_email,))
-        row = cur.fetchone()
-        if not row:
-            return []
-        data = row["data"]
-        # convert date strings back to date objects if needed
-        for entry in data:
-            if isinstance(entry.get('date'), str):
-                entry['date'] = datetime.strptime(entry['date'], '%Y-%m-%d').date()
+        response = supabase.table("mood_entries").select("*").eq("user_email", user_email).order("date", desc=False).execute()
+        
+        data = []
+        for entry in response.data:
+            # Convert date string back to date object
+            entry_data = {
+                "date": datetime.strptime(entry["date"], '%Y-%m-%d').date(),
+                "mood_score": entry["mood_score"],
+                "note": entry["note"],
+                "tags": entry["tags"],
+                "ai_suggestion": entry.get("ai_suggestion", ""),
+                "helpful_hint": entry.get("helpful_hint", ""),
+                "timestamp": entry.get("timestamp", "")
+            }
+            data.append(entry_data)
+        
         return data
-    finally:
-        conn.close()
+    except Exception as e:
+        st.error(f"Error loading data from Supabase: {str(e)}")
+        return []
 
-def save_data_to_db(user_email, data):
-    # serialize dates
-    data_to_save = []
-    for entry in data:
-        entry_copy = entry.copy()
-        if isinstance(entry_copy.get('date'), date):
-            entry_copy['date'] = entry_copy['date'].strftime('%Y-%m-%d')
-        data_to_save.append(entry_copy)
-
-    conn = get_db_conn()
+def save_data_to_supabase(user_email, entry_data):
+    """Save a single mood entry to Supabase"""
     try:
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO public.user_data (email, data)
-            VALUES (%s, %s)
-            ON CONFLICT (email) DO UPDATE SET data = EXCLUDED.data, updated_at = now()
-            """, (user_email, Json(data_to_save)))
-        conn.commit()
-    finally:
-        conn.close()
+        # Prepare data for Supabase
+        supabase_entry = {
+            "user_email": user_email,
+            "date": entry_data["date"].strftime('%Y-%m-%d') if isinstance(entry_data["date"], date) else entry_data["date"],
+            "mood_score": entry_data["mood_score"],
+            "note": entry_data["note"],
+            "tags": entry_data["tags"],
+            "ai_suggestion": entry_data.get("ai_suggestion", ""),
+            "helpful_hint": entry_data.get("helpful_hint", ""),
+            "timestamp": entry_data.get("timestamp", datetime.now().isoformat())
+        }
+        
+        # Check if entry already exists for this date
+        existing = supabase.table("mood_entries").select("id").eq("user_email", user_email).eq("date", supabase_entry["date"]).execute()
+        
+        if existing.data:
+            # Update existing entry
+            response = supabase.table("mood_entries").update(supabase_entry).eq("user_email", user_email).eq("date", supabase_entry["date"]).execute()
+        else:
+            # Insert new entry
+            response = supabase.table("mood_entries").insert(supabase_entry).execute()
+        
+        return True
+    except Exception as e:
+        st.error(f"Error saving data to Supabase: {str(e)}")
+        return False
 
-# Configuration
-DATA_FILE = "mood_data.json"
-CONFIG_FILE = "app_config.json"
+def load_config_from_supabase(user_email):
+    """Load app configuration from Supabase"""
+    try:
+        response = supabase.table("user_configs").select("*").eq("user_email", user_email).execute()
+        
+        if response.data:
+            return response.data[0]["config"]
+        else:
+            return {"openai_api_key": "", "theme": "🌊 Ocean"}
+    except Exception as e:
+        st.error(f"Error loading config from Supabase: {str(e)}")
+        return {"openai_api_key": "", "theme": "🌊 Ocean"}
+
+def save_config_to_supabase(user_email, config):
+    """Save app configuration to Supabase"""
+    try:
+        # Check if config already exists
+        existing = supabase.table("user_configs").select("id").eq("user_email", user_email).execute()
+        
+        config_data = {
+            "user_email": user_email,
+            "config": config
+        }
+        
+        if existing.data:
+            # Update existing config
+            response = supabase.table("user_configs").update(config_data).eq("user_email", user_email).execute()
+        else:
+            # Insert new config
+            response = supabase.table("user_configs").insert(config_data).execute()
+        
+        return True
+    except Exception as e:
+        st.error(f"Error saving config to Supabase: {str(e)}")
+        return False
 
 # Tag palette
 TAG_PALETTE = [
@@ -428,48 +469,6 @@ def apply_theme_css(theme_name):
     </style>
     """, unsafe_allow_html=True)
 
-# Data management functions
-def load_data():
-    """Load mood data from JSON file"""
-    try:
-        with open(DATA_FILE, 'r') as f:
-            data = json.load(f)
-            # Convert string dates back to date objects for processing
-            for entry in data:
-                if isinstance(entry.get('date'), str):
-                    entry['date'] = datetime.strptime(entry['date'], '%Y-%m-%d').date()
-            return data
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
-
-def save_data(data):
-    """Save mood data to JSON file"""
-    # Convert date objects to strings for JSON serialization
-    data_to_save = []
-    for entry in data:
-        entry_copy = entry.copy()
-        if isinstance(entry_copy.get('date'), date):
-            entry_copy['date'] = entry_copy['date'].strftime('%Y-%m-%d')
-        data_to_save.append(entry_copy)
-
-    with open(DATA_FILE, 'w') as f:
-        json.dump(data_to_save, f, indent=2)
-
-def load_config():
-    """Load app configuration"""
-    try:
-        with open(CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {
-            "openai_api_key": ""
-        }
-
-def save_config(config):
-    """Save app configuration"""
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=2)
-
 # Mood helper functions
 def get_mood_emoji_and_label(mood_score):
     """Return emoji and label for mood score"""
@@ -571,9 +570,9 @@ if "mood_value" not in st.session_state:
 if "current_theme" not in st.session_state:
     st.session_state.current_theme = "🌊 Ocean"
 
-# Load data and config
-data = load_data()
-config = load_config()
+# Load data and config from Supabase
+data = load_data_from_supabase(user_email)
+config = load_config_from_supabase(user_email)
 
 # Load theme preference from config
 if "theme" in config:
@@ -599,7 +598,7 @@ selected_theme = st.sidebar.selectbox(
 if selected_theme != st.session_state.current_theme:
     st.session_state.current_theme = selected_theme
     config["theme"] = selected_theme
-    save_config(config)
+    save_config_to_supabase(user_email, config)
     st.rerun()
 
 # Custom theme color pickers (only show if Custom theme is selected)
@@ -631,7 +630,7 @@ api_key = st.sidebar.text_input("OpenAI API Key",
 
 if api_key != config.get("openai_api_key", ""):
     config["openai_api_key"] = api_key
-    save_config(config)
+    save_config_to_supabase(user_email, config)
 
 # Main app tabs
 tab_checkin, tab_hints, tab_trends, tab_chat = st.tabs(["📝 Check-in", "💡 Hints", "📊 Trends", "💬 Chat"])
@@ -783,14 +782,14 @@ with tab_checkin:
             "timestamp": datetime.now().isoformat()
         }
 
-        data.append(new_entry)
-        save_data(data)
-
-        st.success(f"Check-in saved for {selected_date.strftime('%B %d, %Y')}!")
-
-        # Reset form
-        st.session_state.selected_tags = set()
-        st.rerun()
+        if save_data_to_supabase(user_email, new_entry):
+            st.success(f"Check-in saved for {selected_date.strftime('%B %d, %Y')}!")
+            
+            # Reset form
+            st.session_state.selected_tags = set()
+            st.rerun()
+        else:
+            st.error("Failed to save check-in. Please try again.")
 
 # Tab 2: Hints
 with tab_hints:
