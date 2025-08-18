@@ -112,8 +112,19 @@ def load_config_from_supabase(user_email):
 def get_global_openai_key():
     """Get global OpenAI API key from secrets"""
     try:
-        # Access the key from the [openai] section
-        key = st.secrets["openai"]["openai_api_key"]
+        # Try different possible key locations in secrets
+        if "openai_api_key" in st.secrets:
+            # Direct key in secrets
+            key = st.secrets["openai_api_key"]
+        elif "openai" in st.secrets and "openai_api_key" in st.secrets["openai"]:
+            # Key in [openai] section
+            key = st.secrets["openai"]["openai_api_key"]
+        elif "openai" in st.secrets and "api_key" in st.secrets["openai"]:
+            # Alternative key name in [openai] section
+            key = st.secrets["openai"]["api_key"]
+        else:
+            return ""
+        
         return key.strip() if key else ""
     except Exception as e:
         # For debugging - you can remove this later
