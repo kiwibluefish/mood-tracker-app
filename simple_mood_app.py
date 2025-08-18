@@ -30,7 +30,7 @@ else:
     st.sidebar.markdown(f"Signed in as **{user_name}** ({user_email})")
     if st.button("Log out"):
         st.logout()
-        st.experimental_rerun()
+        st.rerun()
 
 # Supabase configuration
 @st.cache_resource
