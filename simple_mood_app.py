@@ -11,6 +11,26 @@ from datetime import date, datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 
+# --- Authentication gate (Streamlit-managed OIDC) ---
+def show_login():
+    st.header("This app is private.")
+    st.subheader("Please sign in with Google")
+    if st.button("Sign in with Google"):
+        st.login()
+
+# If user not logged in, show login screen and stop execution
+if not st.user.is_logged_in:
+    show_login()
+    st.stop()  # prevents the rest of the app from running until login
+else:
+    # Example: available identity fields
+    user_email = st.user.email
+    user_name = st.user.name
+    st.sidebar.markdown(f"Signed in as **{user_name}** ({user_email})")
+    if st.button("Log out"):
+        st.logout()
+        st.experimental_rerun()
+
 # Configuration
 DATA_FILE = "mood_data.json"
 CONFIG_FILE = "app_config.json"
