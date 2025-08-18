@@ -112,8 +112,12 @@ def load_config_from_supabase(user_email):
 def get_global_openai_key():
     """Get global OpenAI API key from secrets"""
     try:
-        return st.secrets["openai_api_key"]
-    except:
+        # Check if the key exists and is not empty
+        key = st.secrets.get("openai_api_key", "")
+        return key.strip() if key else ""
+    except Exception as e:
+        # For debugging - you can remove this later
+        st.sidebar.error(f"Error accessing OpenAI key: {str(e)}")
         return ""
 
 def save_config_to_supabase(user_email, config):
@@ -635,8 +639,12 @@ if selected_theme == "🎨 Custom":
 # Show AI status in sidebar
 if api_key:
     st.sidebar.success("🤖 AI Features Enabled")
+    # Debug info - remove this later
+    st.sidebar.info(f"Key length: {len(api_key)} chars")
 else:
     st.sidebar.warning("🤖 AI Features Disabled")
+    # Debug info - remove this later
+    st.sidebar.info("No API key found in secrets")
 
 # Main app tabs
 tab_checkin, tab_hints, tab_trends, tab_chat = st.tabs(["📝 Check-in", "💡 Hints", "📊 Trends", "💬 Chat"])
