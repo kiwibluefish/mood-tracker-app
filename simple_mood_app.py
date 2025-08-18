@@ -112,8 +112,8 @@ def load_config_from_supabase(user_email):
 def get_global_openai_key():
     """Get global OpenAI API key from secrets"""
     try:
-        # Check if the key exists and is not empty
-        key = st.secrets.get("openai_api_key", "")
+        # Access the key from the [openai] section
+        key = st.secrets["openai"]["api_key"]
         return key.strip() if key else ""
     except Exception as e:
         # For debugging - you can remove this later
