@@ -5,3 +5,4 @@ requests
 openai
 Authlib
 psycopg2-binary
+supabase
