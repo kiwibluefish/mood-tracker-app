@@ -204,8 +204,8 @@ THEMES = {
         "background": "#f8fafc",
         "surface": "#ffffff",
         "text": "#1f2937",
-        "gradient_start": "#667eea",
-        "gradient_end": "#764ba2",
+        "gradient_start": "#f1f5f9",
+        "gradient_end": "#e2e8f0",
         "mood_colors": ["#1e40af", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"]
     },
     "🌅 Sunrise": {
@@ -215,8 +215,8 @@ THEMES = {
         "background": "#fffbeb",
         "surface": "#ffffff",
         "text": "#92400e",
-        "gradient_start": "#f59e0b",
-        "gradient_end": "#ef4444",
+        "gradient_start": "#fef3c7",
+        "gradient_end": "#fed7aa",
         "mood_colors": ["#dc2626", "#ef4444", "#f59e0b", "#fbbf24", "#fde047", "#fef3c7"]
     },
     "🌸 Blossom": {
@@ -226,8 +226,8 @@ THEMES = {
         "background": "#fdf2f8",
         "surface": "#ffffff",
         "text": "#831843",
-        "gradient_start": "#ec4899",
-        "gradient_end": "#8b5cf6",
+        "gradient_start": "#fce7f3",
+        "gradient_end": "#f3e8ff",
         "mood_colors": ["#be185d", "#ec4899", "#f472b6", "#f9a8d4", "#fbcfe8", "#fce7f3"]
     },
     "🌿 Nature": {
@@ -237,8 +237,8 @@ THEMES = {
         "background": "#f0fdf4",
         "surface": "#ffffff",
         "text": "#064e3b",
-        "gradient_start": "#10b981",
-        "gradient_end": "#059669",
+        "gradient_start": "#ecfdf5",
+        "gradient_end": "#d1fae5",
         "mood_colors": ["#047857", "#059669", "#10b981", "#34d399", "#6ee7b7", "#d1fae5"]
     },
     "🌙 Midnight": {
@@ -248,8 +248,8 @@ THEMES = {
         "background": "#0f172a",
         "surface": "#1e293b",
         "text": "#e2e8f0",
-        "gradient_start": "#8b5cf6",
-        "gradient_end": "#3b82f6",
+        "gradient_start": "#1e293b",
+        "gradient_end": "#334155",
         "mood_colors": ["#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe", "#ede9fe"]
     }
 }
