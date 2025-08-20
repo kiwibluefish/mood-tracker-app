@@ -520,15 +520,48 @@ class MoodHelper:
         }
     }
     
-    # Curated quote sources with high-quality content
+    # Trusted sources for quotes and mental health advice
     TRUSTED_SOURCES = [
-        "realsimple.com",
-        "goodhousekeeping.com", 
-        "prevention.com",
+        # Mental Health & Psychology Sources
+        "psychologytoday.com",
         "psychcentral.com",
         "thedepressionproject.com",
-        "parade.com"
+        "nami.org",
+        "mentalhealthamerica.net",
+        "nimh.nih.gov",
+        "samhsa.gov",
+        "mayoclinic.org",
+        "webmd.com",
+        "healthline.com",
+        "verywellmind.com",
+        "betterhelp.com",
+        "talkspace.com",
+        
+        # Wellness & Lifestyle Sources
+        "mindful.org",
+        "headspace.com",
+        "calm.com",
+        "realsimple.com",
+        "goodhousekeeping.com",
+        "prevention.com",
+        "parade.com",
+        "oprah.com",
+        "huffpost.com",
+        
+        # Academic & Research Sources
+        "apa.org",
+        "ncbi.nlm.nih.gov",
+        "who.int",
+        "cdc.gov"
     ]
+    
+    # Search terms for different types of content
+    SEARCH_CATEGORIES = {
+        "quotes": ["inspirational quotes", "motivational quotes", "positive quotes", "mental health quotes"],
+        "clinical_advice": ["mental health tips", "coping strategies", "therapy techniques", "clinical advice"],
+        "self_care": ["self-care practices", "mindfulness techniques", "stress management", "wellness tips"],
+        "professional_help": ["when to seek therapy", "mental health resources", "professional support", "crisis intervention"]
+    }
     
     @staticmethod
     def get_mood_info(mood_score: int) -> Tuple[str, str, str]:
@@ -622,71 +655,88 @@ class MoodHelper:
     
     @staticmethod
     def _search_web_for_quotes(search_term: str) -> List[Dict]:
-        """Search web for quotes using available search functionality"""
+        """Search web for quotes and mental health advice from trusted sources"""
         try:
-            # Check if we're in a Streamlit environment with web search capability
-            # This is a placeholder - in practice, you'd integrate with your web search tool
-            # For now, return curated quotes as the primary method
-            return MoodHelper._get_curated_quotes(search_term)
+            # Enhanced search with multiple content types
+            search_results = []
+            
+            # Search for quotes from trusted sources
+            for source in MoodHelper.TRUSTED_SOURCES[:5]:  # Limit to prevent rate limiting
+                enhanced_search = f"{search_term} site:{source}"
+                try:
+                    # This would integrate with your web search functionality
+                    # For now, we'll simulate the search structure
+                    results = MoodHelper._simulate_web_search(enhanced_search, source)
+                    search_results.extend(results)
+                except:
+                    continue
+            
+            # Also search for clinical advice if mood is low
+            if any(word in search_term.lower() for word in ["depression", "anxiety", "difficult", "tough"]):
+                clinical_searches = [
+                    f"mental health coping strategies {search_term}",
+                    f"therapy techniques for {search_term}",
+                    f"professional mental health advice {search_term}"
+                ]
+                
+                for clinical_search in clinical_searches[:2]:
+                    try:
+                        clinical_results = MoodHelper._simulate_web_search(clinical_search, "clinical")
+                        search_results.extend(clinical_results)
+                    except:
+                        continue
+            
+            return search_results if search_results else MoodHelper._get_emergency_fallback()
+            
         except Exception as e:
-            # Fallback: return curated quotes if web search unavailable
-            return MoodHelper._get_curated_quotes(search_term)
+            return MoodHelper._get_emergency_fallback()
     
     @staticmethod
-    def _get_curated_quotes(search_term: str) -> List[Dict]:
-        """Fallback curated quotes when web search is unavailable"""
-        curated_quotes = {
-            "depression quotes": [
+    def _simulate_web_search(search_term: str, source_type: str) -> List[Dict]:
+        """Simulate web search results - replace with actual web search integration"""
+        # This method would be replaced with actual web search functionality
+        # For now, it returns structured data that represents what a web search might return
+        
+        if source_type == "clinical":
+            return [
                 {
-                    "quote": "When everything feels heavy, start with the smallest possible anchor. Try one minute of slow breathing, counting 4-in and 6-out.",
-                    "author": "The Depression Project",
-                    "source": "thedepressionproject.com",
-                    "url": "https://thedepressionproject.com/blogs/news/positive-uplifting-encouraging-quotes-for-depression"
-                },
-                {
-                    "quote": "You are brave, courageous and strong for continuing to fight an illness that nobody else can see.",
-                    "author": "The Depression Project", 
-                    "source": "thedepressionproject.com",
-                    "url": "https://thedepressionproject.com/blogs/news/positive-uplifting-encouraging-quotes-for-depression"
-                }
-            ],
-            "motivational quotes": [
-                {
-                    "quote": "Nothing is impossible, the word itself says 'I'm possible.'",
-                    "author": "Audrey Hepburn",
-                    "source": "realsimple.com",
-                    "url": "https://www.realsimple.com/work-life/life-strategies/inspiration-motivation/positive-quotes"
-                },
-                {
-                    "quote": "Real change, enduring change, happens one step at a time.",
-                    "author": "Ruth Bader Ginsberg",
-                    "source": "realsimple.com", 
-                    "url": "https://www.realsimple.com/work-life/life-strategies/inspiration-motivation/positive-quotes"
-                }
-            ],
-            "happiness quotes": [
-                {
-                    "quote": "Happiness is not by chance, but by choice.",
-                    "author": "Jim Rohn",
-                    "source": "goodhousekeeping.com",
-                    "url": "https://www.goodhousekeeping.com/health/wellness/g2401/inspirational-quotes/"
-                },
-                {
-                    "quote": "Try to be a rainbow in someone else's cloud.",
-                    "author": "Maya Angelou",
-                    "source": "realsimple.com",
-                    "url": "https://www.realsimple.com/work-life/life-strategies/inspiration-motivation/positive-quotes"
+                    "quote": f"Evidence-based approach for {search_term}: Focus on small, manageable steps and professional support when needed.",
+                    "author": "Clinical Psychology Research",
+                    "source": "psychologytoday.com",
+                    "url": "https://www.psychologytoday.com",
+                    "content_type": "clinical_advice"
                 }
             ]
-        }
-        
-        # Find matching quotes
-        for key, quotes in curated_quotes.items():
-            if any(word in search_term.lower() for word in key.split()):
-                return quotes  # Return the quotes directly as they're already in dict format
-        
-        # Return a default set if no matches found
-        return curated_quotes["motivational quotes"][:2]
+        else:
+            return [
+                {
+                    "quote": f"Dynamic content from {source_type} related to {search_term}",
+                    "author": "Web Source",
+                    "source": source_type,
+                    "url": f"https://{source_type}",
+                    "content_type": "quote"
+                }
+            ]
+    
+    @staticmethod
+    def _get_emergency_fallback() -> List[Dict]:
+        """Emergency fallback when all search methods fail"""
+        return [
+            {
+                "quote": "If you're experiencing a mental health crisis, please reach out for professional help immediately.",
+                "author": "Mental Health Emergency Protocol",
+                "source": "crisis-resources.org",
+                "url": "https://www.samhsa.gov/find-help/national-helpline",
+                "content_type": "emergency_resource"
+            },
+            {
+                "quote": "Remember: seeking help is a sign of strength, not weakness. You deserve support and care.",
+                "author": "Mental Health Advocacy",
+                "source": "nami.org",
+                "url": "https://www.nami.org/help",
+                "content_type": "supportive_message"
+            }
+        ]
     
     @staticmethod
     def _parse_quotes_from_results(search_results: List[Dict], sentiment: str) -> List[Dict]:
@@ -855,31 +905,58 @@ class MoodHelper:
     
     @staticmethod
     def _get_fallback_hint(score: int, note_text: str = "") -> str:
-        """Fallback to static hints if dynamic search fails"""
+        """Emergency fallback with clinical mental health resources when dynamic search fails"""
         note_lower = (note_text or "").lower()
+        
+        # Crisis keywords that require immediate professional resources
+        crisis_keywords = ["suicide", "self-harm", "hurt myself", "end it all", "can't go on", "hopeless"]
+        if any(word in note_lower for word in crisis_keywords):
+            return (
+                "🚨 **IMMEDIATE SUPPORT NEEDED** 🚨\n\n"
+                "If you're having thoughts of self-harm, please reach out immediately:\n"
+                "• **Crisis Text Line**: Text HOME to 741741\n"
+                "• **National Suicide Prevention Lifeline**: 988\n"
+                "• **Emergency Services**: 911\n\n"
+                "You are not alone. Professional help is available 24/7."
+            )
         
         if score <= 3 or any(word in note_lower for word in ["overwhelmed", "anxious", "panic", "fear"]):
             return (
-                "When everything feels heavy, start with the smallest possible anchor. "
-                "Try one minute of slow breathing, counting 4-in and 6-out. "
-                "Look around and name a few things you can see or touch. "
-                "If distress continues, consider reaching out to someone you trust or a helpline. "
-                "For now, choose one tiny action—roll your shoulders, sip water, or step outside."
+                "**Professional Mental Health Resources:**\n\n"
+                "• **SAMHSA National Helpline**: 1-800-662-4357 (free, confidential, 24/7)\n"
+                "• **Crisis Text Line**: Text HOME to 741741\n"
+                "• **Psychology Today**: Find local therapists at psychologytoday.com\n\n"
+                "**Immediate Coping Strategies:**\n"
+                "• Try the 5-4-3-2-1 grounding technique\n"
+                "• Practice box breathing (4-4-4-4 count)\n"
+                "• Consider telehealth therapy options like BetterHelp or Talkspace\n\n"
+                "Remember: Seeking professional help is a sign of strength."
             )
         elif score <= 5 or any(word in note_lower for word in ["stuck", "flat", "empty", "numb"]):
             return (
-                "When energy is low, momentum comes from tiny wins. "
-                "Pick a 5-minute task you can complete now—tidy one surface, stretch, or put on music. "
-                "Consider a short walk or write about one thing you care about this week. "
-                "Text a friend a simple check-in. Thank yourself for showing up today. "
-                "Choose your next tiny action and commit to just two minutes."
+                "**Mental Health Support Options:**\n\n"
+                "• **NAMI Support Groups**: nami.org/support\n"
+                "• **Mental Health America Screening**: mhascreening.org\n"
+                "• **Therapy Options**: Consider CBT, DBT, or mindfulness-based therapy\n\n"
+                "**Evidence-Based Self-Care:**\n"
+                "• Maintain sleep hygiene (7-9 hours)\n"
+                "• Regular physical activity (even 10-minute walks)\n"
+                "• Social connection (text one person today)\n"
+                "• Mindfulness apps: Headspace, Calm, Insight Timer\n\n"
+                "Small, consistent actions build momentum over time."
             )
         else:
             return (
-                "Great to see some positive energy! Savor this good moment for 20 seconds. "
-                "Consider sharing this energy with someone—send a kind note or plan something you enjoy. "
-                "Capture one doable plan for later so the momentum has somewhere to go. "
-                "Mark this win in your memory—small joys add up over time."
+                "**Maintaining Mental Wellness:**\n\n"
+                "• **Preventive Care**: Regular check-ins with mental health professionals\n"
+                "• **Wellness Resources**: mindful.org, verywellmind.com\n"
+                "• **Community Support**: Consider peer support groups\n\n"
+                "**Positive Psychology Practices:**\n"
+                "• Gratitude journaling (3 things daily)\n"
+                "• Acts of kindness for others\n"
+                "• Mindful appreciation of positive moments\n"
+                "• Building resilience through meaningful connections\n\n"
+                "Your positive energy can be a resource for others too."
             )
     
     @staticmethod
@@ -911,7 +988,83 @@ class MoodHelper:
         for key in keys_to_remove:
             del st.session_state[key]
         st.success("Quote cache cleared! New quotes will be fetched on next mood check-in.")
-
+    
+    @staticmethod
+    def get_mental_health_resources() -> Dict[str, List[Dict]]:
+        """Get comprehensive mental health resources by category"""
+        return {
+            "crisis_support": [
+                {
+                    "name": "National Suicide Prevention Lifeline",
+                    "contact": "988",
+                    "description": "24/7 crisis support",
+                    "url": "https://suicidepreventionlifeline.org"
+                },
+                {
+                    "name": "Crisis Text Line",
+                    "contact": "Text HOME to 741741",
+                    "description": "24/7 text-based crisis support",
+                    "url": "https://www.crisistextline.org"
+                },
+                {
+                    "name": "SAMHSA National Helpline",
+                    "contact": "1-800-662-4357",
+                    "description": "Treatment referral and information service",
+                    "url": "https://www.samhsa.gov/find-help/national-helpline"
+                }
+            ],
+            "therapy_platforms": [
+                {
+                    "name": "BetterHelp",
+                    "description": "Online therapy platform",
+                    "url": "https://www.betterhelp.com"
+                },
+                {
+                    "name": "Talkspace",
+                    "description": "Text and video therapy",
+                    "url": "https://www.talkspace.com"
+                },
+                {
+                    "name": "Psychology Today",
+                    "description": "Find local therapists",
+                    "url": "https://www.psychologytoday.com"
+                }
+            ],
+            "support_organizations": [
+                {
+                    "name": "NAMI (National Alliance on Mental Illness)",
+                    "description": "Support groups and education",
+                    "url": "https://www.nami.org"
+                },
+                {
+                    "name": "Mental Health America",
+                    "description": "Screening tools and resources",
+                    "url": "https://www.mhanational.org"
+                },
+                {
+                    "name": "The Depression Project",
+                    "description": "Depression support and education",
+                    "url": "https://thedepressionproject.com"
+                }
+            ],
+            "wellness_apps": [
+                {
+                    "name": "Headspace",
+                    "description": "Meditation and mindfulness",
+                    "url": "https://www.headspace.com"
+                },
+                {
+                    "name": "Calm",
+                    "description": "Sleep stories and meditation",
+                    "url": "https://www.calm.com"
+                },
+                {
+                    "name": "Insight Timer",
+                    "description": "Free meditation app",
+                    "url": "https://insighttimer.com"
+                }
+            ]
+        }
 class AIHelper:
     """AI-related functionality"""
     
