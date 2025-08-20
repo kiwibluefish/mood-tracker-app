@@ -384,15 +384,22 @@ class DataManager:
     @st.cache_resource
     def init_supabase():
         """Initialize Supabase client"""
-        url = st.secrets["supabase"]["url"]
-        key = st.secrets["supabase"]["anon_key"]
-        return create_client(url, key)
+        try:
+            url = st.secrets["supabase"]["url"]
+            key = st.secrets["supabase"]["anon_key"]
+            return create_client(url, key)
+        except Exception as e:
+            st.error(f"Error initializing Supabase: {str(e)}")
+            st.error("Please check your Supabase configuration in secrets.toml")
+            return None
     
     @staticmethod
     def load_user_data(user_email):
         """Load mood data from Supabase"""
         try:
             supabase = DataManager.init_supabase()
+            if not supabase:
+                return []
             response = supabase.table("mood_entries").select("*").eq("user_email", user_email).order("date", desc=False).execute()
             
             data = []
@@ -417,6 +424,8 @@ class DataManager:
         """Save mood entry to Supabase"""
         try:
             supabase = DataManager.init_supabase()
+            if not supabase:
+                return False
             supabase_entry = {
                 "user_email": user_email,
                 "date": entry_data["date"].strftime('%Y-%m-%d') if isinstance(entry_data["date"], date) else entry_data["date"],
@@ -446,6 +455,8 @@ class DataManager:
         """Load user configuration"""
         try:
             supabase = DataManager.init_supabase()
+            if not supabase:
+                return {"theme": "🌊 Ocean"}
             response = supabase.table("user_configs").select("*").eq("user_email", user_email).execute()
             
             if response.data:
@@ -461,6 +472,8 @@ class DataManager:
         """Save user configuration"""
         try:
             supabase = DataManager.init_supabase()
+            if not supabase:
+                return False
             existing = supabase.table("user_configs").select("id").eq("user_email", user_email).execute()
             
             config_data = {"user_email": user_email, "config": config}
@@ -508,7 +521,13 @@ class DataManager:
 def get_ai_suggestion(mood_score, note_text, tags):
     """Get AI suggestion using OpenAI API"""
     try:
-        api_key = st.session_state.get("openai_api_key")
+        # Try to get API key from secrets first, then session state
+        api_key = None
+        if "openai" in st.secrets and "api_key" in st.secrets["openai"]:
+            api_key = st.secrets["openai"]["api_key"]
+        else:
+            api_key = st.session_state.get("openai_api_key")
+        
         if not api_key:
             return "Add your OpenAI API key in the sidebar to get personalized AI suggestions!"
         
