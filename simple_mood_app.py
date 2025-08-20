@@ -254,12 +254,72 @@ THEMES = {
     }
 }
 
+# UI Style definitions for different design aesthetics
+UI_STYLES = {
+    "🎨 Cartoonish": {
+        "border_radius": "15px",
+        "button_radius": "25px",
+        "card_radius": "15px",
+        "shadow": "0 10px 30px rgba(0,0,0,0.1)",
+        "button_shadow": "0 4px 15px rgba(0,0,0,0.2)",
+        "padding": "2rem",
+        "button_padding": "0.75rem 1.5rem",
+        "font_weight": "600",
+        "transition": "all 0.3s ease",
+        "mood_display_style": "gradient",
+        "button_style": "gradient"
+    },
+    "🏢 Modern": {
+        "border_radius": "8px",
+        "button_radius": "6px", 
+        "card_radius": "8px",
+        "shadow": "0 2px 10px rgba(0,0,0,0.08)",
+        "button_shadow": "0 1px 3px rgba(0,0,0,0.1)",
+        "padding": "1.5rem",
+        "button_padding": "0.5rem 1rem",
+        "font_weight": "500",
+        "transition": "all 0.2s ease",
+        "mood_display_style": "solid",
+        "button_style": "solid"
+    },
+    "📐 Minimal": {
+        "border_radius": "4px",
+        "button_radius": "4px",
+        "card_radius": "4px", 
+        "shadow": "0 1px 3px rgba(0,0,0,0.05)",
+        "button_shadow": "none",
+        "padding": "1rem",
+        "button_padding": "0.4rem 0.8rem",
+        "font_weight": "400",
+        "transition": "all 0.15s ease",
+        "mood_display_style": "border",
+        "button_style": "outline"
+    },
+    "✨ Elegant": {
+        "border_radius": "12px",
+        "button_radius": "8px",
+        "card_radius": "12px",
+        "shadow": "0 8px 25px rgba(0,0,0,0.12)",
+        "button_shadow": "0 2px 8px rgba(0,0,0,0.15)",
+        "padding": "2.5rem",
+        "button_padding": "0.6rem 1.2rem",
+        "font_weight": "500",
+        "transition": "all 0.25s ease",
+        "mood_display_style": "glass",
+        "button_style": "elevated"
+    }
+}
+
 def get_current_theme():
     """Get current theme from session state or default"""
     return st.session_state.get("current_theme", "🌊 Ocean")
 
-def apply_theme_css(theme_name):
-    """Apply CSS variables based on selected theme"""
+def get_current_ui_style():
+    """Get current UI style from session state or default"""
+    return st.session_state.get("current_ui_style", "🎨 Cartoonish")
+
+def apply_theme_css(theme_name, ui_style_name):
+    """Apply CSS variables based on selected theme and UI style"""
     if theme_name == "🎨 Custom":
         theme = {
             "primary": st.session_state.get("custom_primary", "#3b82f6"),
@@ -274,6 +334,28 @@ def apply_theme_css(theme_name):
         }
     else:
         theme = THEMES.get(theme_name, THEMES["🌊 Ocean"])
+    
+    ui_style = UI_STYLES.get(ui_style_name, UI_STYLES["🎨 Cartoonish"])
+    
+    # Generate mood display style based on UI style
+    if ui_style["mood_display_style"] == "gradient":
+        mood_display_bg = f"background: linear-gradient(45deg, {theme['primary']}, {theme['accent']});"
+    elif ui_style["mood_display_style"] == "solid":
+        mood_display_bg = f"background-color: {theme['primary']};"
+    elif ui_style["mood_display_style"] == "border":
+        mood_display_bg = f"background-color: transparent; border: 2px solid {theme['primary']}; color: {theme['primary']};"
+    else:  # glass
+        mood_display_bg = f"background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);"
+    
+    # Generate AI suggestion style
+    if ui_style["button_style"] == "gradient":
+        ai_suggestion_bg = f"background: linear-gradient(45deg, {theme['accent']}, {theme['primary']});"
+    elif ui_style["button_style"] == "solid":
+        ai_suggestion_bg = f"background-color: {theme['accent']};"
+    elif ui_style["button_style"] == "outline":
+        ai_suggestion_bg = f"background-color: transparent; border: 1px solid {theme['accent']}; color: {theme['accent']};"
+    else:  # elevated
+        ai_suggestion_bg = f"background-color: {theme['accent']}; box-shadow: {ui_style['button_shadow']};"
 
     st.markdown(f"""
     <style>
@@ -286,6 +368,15 @@ def apply_theme_css(theme_name):
         --text-color: {theme['text']};
         --gradient-start: {theme['gradient_start']};
         --gradient-end: {theme['gradient_end']};
+        --border-radius: {ui_style['border_radius']};
+        --button-radius: {ui_style['button_radius']};
+        --card-radius: {ui_style['card_radius']};
+        --shadow: {ui_style['shadow']};
+        --button-shadow: {ui_style['button_shadow']};
+        --padding: {ui_style['padding']};
+        --button-padding: {ui_style['button_padding']};
+        --font-weight: {ui_style['font_weight']};
+        --transition: {ui_style['transition']};
     }}
     
     .stApp {{
@@ -295,26 +386,91 @@ def apply_theme_css(theme_name):
     
     .main .block-container {{
         background-color: {theme['surface']};
-        border-radius: 15px;
-        padding: 2rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        border-radius: var(--border-radius);
+        padding: var(--padding);
+        box-shadow: var(--shadow);
         margin-top: 2rem;
+        transition: var(--transition);
     }}
     
     .mood-display {{
         text-align: center;
         padding: 1rem;
-        border-radius: 10px;
-        background: linear-gradient(45deg, {theme['primary']}, {theme['accent']});
+        border-radius: var(--card-radius);
+        {mood_display_bg}
         color: white;
         margin: 1rem 0;
+        transition: var(--transition);
+        font-weight: var(--font-weight);
     }}
     
     .ai-suggestion {{
-        background: linear-gradient(45deg, {theme['accent']}, {theme['primary']});
+        {ai_suggestion_bg}
         color: white;
         padding: 1rem;
-        border-radius: 10px;
+        border-radius: var(--card-radius);
+        margin: 0.5rem 0;
+        transition: var(--transition);
+        font-weight: var(--font-weight);
+    }}
+    
+    /* Enhanced button styling */
+    .stButton > button {{
+        border-radius: var(--button-radius) !important;
+        padding: var(--button-padding) !important;
+        font-weight: var(--font-weight) !important;
+        transition: var(--transition) !important;
+        box-shadow: var(--button-shadow) !important;
+        border: none !important;
+    }}
+    
+    .stButton > button:hover {{
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    }}
+    
+    /* Tag button styling */
+    .stButton > button[kind="secondary"] {{
+        background-color: rgba(var(--primary-color), 0.1) !important;
+        color: var(--primary-color) !important;
+        border: 1px solid rgba(var(--primary-color), 0.3) !important;
+    }}
+    
+    /* Slider styling */
+    .stSlider {{
+        padding: 1rem 0;
+    }}
+    
+    /* Text input styling */
+    .stTextInput > div > div > input {{
+        border-radius: var(--button-radius) !important;
+        border: 1px solid rgba(var(--primary-color), 0.3) !important;
+        transition: var(--transition) !important;
+    }}
+    
+    .stTextArea > div > div > textarea {{
+        border-radius: var(--button-radius) !important;
+        border: 1px solid rgba(var(--primary-color), 0.3) !important;
+        transition: var(--transition) !important;
+    }}
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 8px;
+    }}
+    
+    .stTabs [data-baseweb="tab"] {{
+        border-radius: var(--button-radius) !important;
+        padding: var(--button-padding) !important;
+        font-weight: var(--font-weight) !important;
+    }}
+    
+    /* Metric styling */
+    .metric-container {{
+        background-color: var(--surface-color);
+        padding: 1rem;
+        border-radius: var(--card-radius);
+        box-shadow: var(--shadow);
         margin: 0.5rem 0;
     }}
     </style>
@@ -375,17 +531,21 @@ if "mood_value" not in st.session_state:
     st.session_state.mood_value = 5
 if "current_theme" not in st.session_state:
     st.session_state.current_theme = "🌊 Ocean"
+if "current_ui_style" not in st.session_state:
+    st.session_state.current_ui_style = "🎨 Cartoonish"
 
 # Load data and config
 data = load_data_from_supabase(user_email)
 config = load_config_from_supabase(user_email)
 api_key = get_global_openai_key()
 
-# Load theme preference
+# Load theme and UI style preferences
 if "theme" in config:
     st.session_state.current_theme = config["theme"]
+if "ui_style" in config:
+    st.session_state.current_ui_style = config["ui_style"]
 
-apply_theme_css(st.session_state.current_theme)
+apply_theme_css(st.session_state.current_theme, st.session_state.current_ui_style)
 
 # ============================================================================
 # SIDEBAR CONFIGURATION
@@ -426,6 +586,23 @@ if selected_theme == "🎨 Custom":
     
     if st.sidebar.button("🔄 Apply Custom Theme"):
         st.rerun()
+
+# UI Style Picker
+st.sidebar.subheader("🎭 UI Style")
+ui_style_options = list(UI_STYLES.keys())
+selected_ui_style = st.sidebar.selectbox(
+    "Choose your UI style:",
+    ui_style_options,
+    index=ui_style_options.index(st.session_state.current_ui_style) if st.session_state.current_ui_style in ui_style_options else 0,
+    help="Select the visual design style for the interface"
+)
+
+# Handle UI style change
+if selected_ui_style != st.session_state.current_ui_style:
+    st.session_state.current_ui_style = selected_ui_style
+    config["ui_style"] = selected_ui_style
+    save_config_to_supabase(user_email, config)
+    st.rerun()
 
 # AI status display
 if api_key:
