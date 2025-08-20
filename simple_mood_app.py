@@ -624,11 +624,11 @@ class MoodHelper:
     def _search_web_for_quotes(search_term: str) -> List[Dict]:
         """Search web for quotes using available search functionality"""
         try:
-            # Try to use the web_search function from the main app
-            from main import web_search  # Adjust import as needed
-            results = web_search(f"positive {search_term} with citations", num_results=3)
-            return results
-        except:
+            # Check if we're in a Streamlit environment with web search capability
+            # This is a placeholder - in practice, you'd integrate with your web search tool
+            # For now, return curated quotes as the primary method
+            return MoodHelper._get_curated_quotes(search_term)
+        except Exception as e:
             # Fallback: return curated quotes if web search unavailable
             return MoodHelper._get_curated_quotes(search_term)
     
@@ -683,9 +683,10 @@ class MoodHelper:
         # Find matching quotes
         for key, quotes in curated_quotes.items():
             if any(word in search_term.lower() for word in key.split()):
-                return [{"content": quote} for quote in quotes]
+                return quotes  # Return the quotes directly as they're already in dict format
         
-        return []
+        # Return a default set if no matches found
+        return curated_quotes["motivational quotes"][:2]
     
     @staticmethod
     def _parse_quotes_from_results(search_results: List[Dict], sentiment: str) -> List[Dict]:
@@ -693,10 +694,20 @@ class MoodHelper:
         quotes = []
         
         for result in search_results:
-            # Extract quotes from search result content
-            content = result.get("content", "")
-            url = result.get("url", "")
-            title = result.get("title", "")
+            # Handle both dict and string results
+            if isinstance(result, dict):
+                content = result.get("content", "")
+                url = result.get("url", "")
+                title = result.get("title", "")
+            else:
+                # If result is a string, treat it as content
+                content = str(result)
+                url = ""
+                title = ""
+            
+            # Ensure content is a string before regex operations
+            if not isinstance(content, str):
+                content = str(content)
             
             # Simple quote extraction (look for quoted text)
             import re
@@ -707,16 +718,20 @@ class MoodHelper:
             ]
             
             for pattern in quote_patterns:
-                matches = re.findall(pattern, content)
-                for quote_text, author in matches[:2]:  # Limit per source
-                    if len(quote_text.strip()) > 20:  # Meaningful length
-                        quotes.append({
-                            "quote": quote_text.strip(),
-                            "author": author.strip(),
-                            "source": MoodHelper._extract_domain(url),
-                            "url": url,
-                            "sentiment_match": MoodHelper._calculate_sentiment_match(quote_text, sentiment)
-                        })
+                try:
+                    matches = re.findall(pattern, content)
+                    for quote_text, author in matches[:2]:  # Limit per source
+                        if len(quote_text.strip()) > 20:  # Meaningful length
+                            quotes.append({
+                                "quote": quote_text.strip(),
+                                "author": author.strip(),
+                                "source": MoodHelper._extract_domain(url) if url else "web source",
+                                "url": url,
+                                "sentiment_match": MoodHelper._calculate_sentiment_match(quote_text, sentiment)
+                            })
+                except Exception as e:
+                    # Skip this pattern if regex fails
+                    continue
         
         return quotes
     
@@ -896,27 +911,6 @@ class MoodHelper:
         for key in keys_to_remove:
             del st.session_state[key]
         st.success("Quote cache cleared! New quotes will be fetched on next mood check-in.")
-
-# Usage example and testing function
-def test_mood_helper():
-    """Test function to demonstrate the dynamic MoodHelper"""
-    st.subheader("🧪 Testing Dynamic MoodHelper")
-    
-    test_mood = st.slider("Test Mood Score", 0, 10, 5)
-    test_note = st.text_input("Test Note", "Feeling a bit overwhelmed with work today")
-    
-    if st.button("Get Dynamic Hint"):
-        with st.spinner("Searching for personalized quotes..."):
-            hint = MoodHelper.get_helpful_hint(test_mood, test_note)
-            st.markdown("### Generated Hint:")
-            st.markdown(hint)
-    
-    if st.button("Clear Quote Cache"):
-        MoodHelper.clear_quote_cache()
-
-if __name__ == "__main__":
-    # For testing purposes
-    test_mood_helper()
 
 class AIHelper:
     """AI-related functionality"""
